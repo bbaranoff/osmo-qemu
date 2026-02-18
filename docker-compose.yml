@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  openbsc-nitb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: openbsc-nitb:latest
+    container_name: openbsc-nitb
+    restart: unless-stopped
+
+    # Nécessaire pour TUN/TAP et iptables
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_RAWIO
+
+    # Réseau host pour accès direct aux ports VTY et Abis
+    network_mode: host
+
+    volumes:
+      # Données persistantes (HLR, SMS, etc.)
+      - openbsc-data:/data
+      # Configs (modifiables sans rebuild)
+      - ./configs:/etc/osmocom:ro
+      # Device TUN
+      - /dev/net/tun:/dev/net/tun
+      - /dev/pts:/dev/pts
+    environment:
+      - LD_LIBRARY_PATH=/usr/local/lib
+
+    # Healthcheck sur le port VTY de osmo-nitb
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo quit | telnet 127.0.0.1 4242 2>/dev/null | grep -q Connected"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+volumes:
+  openbsc-data:
+    driver: local
