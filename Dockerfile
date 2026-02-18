@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y \
     build-essential gcc-9 g++-9 make automake autoconf libtool pkg-config \
     git libpcsclite-dev libtalloc-dev libsctp-dev libgnutls28-dev \
     libmnl-dev libdbi-dev libdbd-sqlite3 libsqlite3-dev sqlite3 \
-    libc-ares-dev libfftw3-dev libusb-1.0-0-dev \
+    libc-ares-dev libfftw3-dev libusb-1.0-0-dev liburing-dev \
     libreadline-dev libncurses5-dev python3 python3-setuptools libortp-dev python3 python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -46,34 +46,34 @@ WORKDIR /src
 
 # ── libosmocore 1.1.0 ───────────────────────────────────────────────────
 RUN git clone https://gitea.osmocom.org/osmocom/libosmocore && \
-    cd libosmocore && git checkout 1.1.0 && \
+    cd libosmocore && git checkout 1.10.0 && \
     autoreconf -fi && \
     ./configure --prefix=${PREFIX} --disable-doxygen && \
     make -j$(nproc) && make install && ldconfig
 
 # ── libosmo-abis 0.7.0 (requiert libosmocore >= 1.0.0) ─────────────────
 RUN git clone https://gitea.osmocom.org/osmocom/libosmo-abis && \
-    cd libosmo-abis && git checkout 0.7.0 && \
+    cd libosmo-abis && git checkout 0.8.0 && \
     autoreconf -fi && \
-    ./configure --prefix=${PREFIX} && \
+    ./configure --prefix=${PREFIX} --disable-dahdi && \
     make -j$(nproc) && make install && ldconfig
 
 RUN git clone https://gitea.osmocom.org/sdr/libosmo-dsp && \
-    cd libosmo-dsp && git checkout 0.4.0 && \
+    cd libosmo-dsp && git checkout 0.5.0 && \
     autoreconf -fi && \
     ./configure --prefix=${PREFIX} && \
     make -j$(nproc) && make install && ldconfig
 
 # ── libosmo-netif 0.6.0 (requiert libosmocore >= 1.0.0) ────────────────
 RUN git clone https://gitea.osmocom.org/osmocom/libosmo-netif && \
-    cd libosmo-netif && git checkout 0.6.0 && \
+    cd libosmo-netif && git checkout 0.7.0 && \
     autoreconf -fi && \
     ./configure --prefix=${PREFIX} && \
     make -j$(nproc) && make install && ldconfig
 
 # ── libosmo-sccp 1.1.0 ─────────────────────────────────────────────────
 RUN git clone https://gitea.osmocom.org/osmocom/libosmo-sccp && \
-    cd libosmo-sccp && git checkout 1.1.0 && \
+    cd libosmo-sccp && git checkout 1.2.0 && \
     autoreconf -fi && \
     ./configure --prefix=${PREFIX} && \
     make -j$(nproc) && make install && ldconfig
@@ -110,8 +110,8 @@ RUN git clone https://gitea.osmocom.org/cellular-infrastructure/osmo-trx && \
 
 
 # ── OsmocomBB (mobile virtuel + trxcon) ─────────────────────────────────
-RUN git clone https://github.com/bbaranoff/osmocom-bb && \
-    cd osmocom-bb/src && \
+RUN git clone https://github.com/bbaranoff/osmocom-bb /root/osmocom-bb  && \
+    cd /root/osmocom-bb/src && \
     make HOST_layer23_CONFARGS=--enable-transceiver nofirmware
 
 
@@ -179,6 +179,8 @@ RUN pip3 install --no-cache-dir ninja tomli
 WORKDIR /src
 
 # ---- clone ton fork ----
+RUN git clone https://github.com/osmocom/libosmo-gprs && cd libosmo-gprs  &&  autoreconf -fi && \
+         ./configure && make && make install && ldconfig
 RUN git clone https://github.com/bbaranoff/qemu.git
 
 # ---- configure QEMU ----
@@ -190,11 +192,20 @@ RUN cd qemu/build && ninja && ninja install
 
 RUN git clone https://github.com/bbaranoff/firmware-osmobbtrx/ /root/firmware/
 RUN cp -r /root/firmware/board/compal_e88 /root/compal_e88
-RUN cp /src/osmocom-bb/src/host/osmocon/osmocon /usr/local/bin
-RUN cp /src/osmocom-bb/src/host/osmocon/osmoload /usr/local/bin
-RUN cp /src/osmocom-bb/src/host/layer23/src/transceiver/transceiver /usr/local/bin
+RUN cp /root/osmocom-bb/src/host/layer23/src/transceiver/transceiver /usr/local/bin
 # shell par défaut
 RUN apt update && apt install nano socat telnet -y
+WORKDIR /src
+
+RUN git clone https://github.com/osmocom/osmocom-bb /src/osmocom-bb && \
+        cd /src/osmocom-bb/src &&  make nofirmware
+RUN cp /root/osmocom-bb/src/host/osmocon/osmocon /usr/local/bin
+RUN cp /root/osmocom-bb/src/host/osmocon/osmoload /usr/local/bin
+
+RUN cp /src/osmocom-bb/src/host/osmocon/osmocon /usr/local/bin
+RUN cp /src/osmocom-bb/src/host/osmocon/osmoload /usr/local/bin
+RUN cp /root/osmocom-bb/src/host/layer23/src/transceiver/transceiver /usr/local/bin
+
 CMD ["/bin/bash"]
 
 # Ports VTY

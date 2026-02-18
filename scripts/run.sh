@@ -7,6 +7,7 @@
 #    1: calypso      (QEMU + osmocon)
 #    2: transceiver  (L1→TRX bridge)
 #    3: osmo-bts-trx (BTS)
+#    4: cell_log     (GSMTAP sniffer via socat proxy)
 #
 #  Usage: bash run.sh
 #  Stop:  tmux kill-session -t gsm
@@ -28,6 +29,7 @@ banner() {
     echo "║  [1] calypso        QEMU + osmocon           ║"
     echo "║  [2] transceiver    L1 → TRX bridge          ║"
     echo "║  [3] osmo-bts-trx   BTS                      ║"
+    echo "║  [4] cell_log       GSMTAP sniffer           ║"
     echo "╚══════════════════════════════════════════════╝"
     echo -e "${N}"
 }
@@ -44,9 +46,10 @@ tmux has-session -t "$SESSION" 2>/dev/null && {
 }
 
 # Kill leftover processes
-for proc in osmo-nitb osmo-bts-trx qemu-system-arm osmocon transceiver; do
+for proc in osmo-nitb osmo-bts-trx qemu-system-arm osmocon transceiver cell_log socat; do
     killall -q "$proc" 2>/dev/null
 done
+rm -f /tmp/osmocom_l2.2
 sleep 0.5
 
 banner
@@ -118,13 +121,61 @@ tmux send-keys -t "$SESSION:bts" "
     osmo-bts-trx -i 0.0.0.0
 " Enter
 
+sleep "$DELAY"
+
+# ── Window 4: cell_log (socat proxy + GSMTAP sniffer) ────
+log "CELLLOG" "Starting socat proxy + cell_log..."
+tmux new-window -t "$SESSION" -n "celllog"
+tmux send-keys -t "$SESSION:celllog" "
+    clear
+    echo -e '${Y}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}'
+    echo -e '${Y}  🔍  cell_log — GSMTAP Sniffer${N}'
+    echo -e '${Y}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}'
+
+    echo '[*] Waiting for /tmp/osmocom_l2 (transceiver must be up)...'
+    for i in \$(seq 1 60); do
+        [ -S /tmp/osmocom_l2 ] && break
+        sleep 1
+    done
+    if [ ! -S /tmp/osmocom_l2 ]; then
+        echo '[-] ERROR: /tmp/osmocom_l2 not found after 60s'
+        exit 1
+    fi
+
+    echo '[+] L1CTL socket found.'
+    echo '[*] Starting socat proxy: /tmp/osmocom_l2 → /tmp/osmocom_l2.2'
+    rm -f /tmp/osmocom_l2.2
+    socat UNIX-LISTEN:/tmp/osmocom_l2.2,fork,reuseaddr \
+          UNIX-CONNECT:/tmp/osmocom_l2 &
+    SOCAT_PID=\$!
+
+    echo '[*] Waiting for proxy socket /tmp/osmocom_l2.2...'
+    for i in \$(seq 1 20); do
+        [ -S /tmp/osmocom_l2.2 ] && break
+        sleep 0.2
+    done
+    if [ ! -S /tmp/osmocom_l2.2 ]; then
+        echo '[-] ERROR: socat proxy socket not ready'
+        kill \$SOCAT_PID 2>/dev/null
+        exit 1
+    fi
+
+    echo '[+] Proxy ready. Launching cell_log on /tmp/osmocom_l2.2'
+    echo '[+] GSMTAP frames → udp://127.0.0.1:4729'
+    echo -e '${Y}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}'
+    /root/osmocom-bb/src/host/layer23/src/misc/cell_log -O /tmp/osmocom_l2.2
+    kill \$SOCAT_PID 2>/dev/null
+    rm -f /tmp/osmocom_l2.2
+" Enter
+
 # ── Done ──────────────────────────────────────────────────
 echo ""
 log "DONE" "All components launched!"
 echo ""
 echo -e "  ${G}tmux attach -t $SESSION${N}        → attach to session"
-echo -e "  ${G}Ctrl+B then 0-3${N}               → switch windows"
+echo -e "  ${G}Ctrl+B then 0-4${N}               → switch windows"
 echo -e "  ${G}tmux kill-session -t $SESSION${N}  → stop everything"
+echo -e "  ${G}Wireshark: udp port 4729${N}       → GSMTAP frames"
 echo ""
 
 # Auto-attach
