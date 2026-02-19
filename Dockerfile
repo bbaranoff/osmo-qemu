@@ -131,6 +131,10 @@ RUN git clone https://github.com/bbaranoff/firmware-osmobbtrx/ /tmp/firmware && 
     cp -r /tmp/firmware/board/compal_e88 /root/compal_e88 && \
     rm -rf /tmp/firmware
 
+RUN git clone https://github.com/osmocom/libosmo-gprs /root/libosmo-gprs && \
+    cd /root/libosmo-gprs/ && \
+    autoreconf -fi && ./configure && make && make install && ldconfig
+
 RUN git clone https://github.com/osmocom/osmocom-bb /root/osmocom-bb && \
     cd /src/osmocom-bb/src && \
     make nofirmware && \

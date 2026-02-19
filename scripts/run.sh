@@ -45,33 +45,7 @@ for i in {1..60}; do
   sleep 1
 done
 [ ! -S /tmp/osmocom_loader ] && exit 1
-echo ' ok' >&2
-
-osmoload -l /tmp/osmocom_loader memload 0x00820000 /tmp/calypso_upload.bin
-osmoload -l /tmp/osmocom_loader jump 0x00820000
-
-exec osmocon -p \"\$PTY\" -m c123xor
-" >/dev/null 2>&1
-
-# ───── TRX ──────────────────────────────
-tmux new-window -t "$SESSION" -n trx
-tmux send-keys -t "$SESSION:trx" \
-bash -c "
-echo -n 'Wait /tmp/osmocom_l2...' >&2
-for i in {1..120}; do
-  [ -S /tmp/osmocom_l2 ] && break
-  sleep 1
-done
-[ ! -S /tmp/osmocom_l2 ] && exit 1
-echo ' ok' >&2
-
-exec transceiver -a 1 -r 99
-" >/dev/null 2>&1 | tee /tmp/trx.log
-
-# ───── BTS ──────────────────────────────
-tmux new-window -t "$SESSION" -n bts
-tmux send-keys -t "$SESSION:bts" \
-"cd $NITB_CONF && osmo-bts-trx -i 127.0.0.1 | tee /tmp/bts.log" Enter
+echo ' ok' >&2"
 
 tmux select-window -t "$SESSION:nitb"
 exec tmux attach -t "$SESSION"

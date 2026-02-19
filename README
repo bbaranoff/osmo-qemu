@@ -1,0 +1,40 @@
+================================================================================
+  WORKFLOW SDR - CALYPSO QEMU / OSMOCOM
+================================================================================
+
+[ PRÉPARATION DU BINAIRE ]
+--------------------------
+arm-none-eabi-objcopy -O binary --remove-section=.text.exceptions \
+~/compal_e88/layer1.highram.elf /tmp/calypso_upload.bin
+
+
+[ TERMINAL 1 : INITIALISATION QEMU ]
+------------------------------------
+bash launch_calypso.sh
+# -> Note bien le /dev/pts/X affiché
+
+
+[ TERMINAL 2 : INJECTION ET JUMP ]
+----------------------------------
+# 1. Chargement en RAM
+osmoload -m c123xor -l /tmp/osmocom_loader memload 0x00820000 /tmp/calypso_upload.bin
+
+# 2. Exécution du firmware
+osmoload -m c123xor -l /tmp/osmocom_loader jump 0x00820000
+
+
+[ TERMINAL 3 : CHECK VIRTPHY ]
+------------------------------
+# Vérification de la liaison Layer 1 virtuelle
+virtphy -s /tmp/osmocom_l1
+
+
+================================================================================
+  VÉRIFICATION VISUELLE
+================================================================================
+
+ Si OK, tu dois voir :
+ [OSMOLOAD] : "JUMP 0x00820000... OK"
+ [VIRTPHY]  : "L1CTL interface initialized"
+ [LOGS]     : Apparition de trafic sur /tmp/osmocom_l1
+================================================================================
