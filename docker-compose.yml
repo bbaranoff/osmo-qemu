@@ -22,7 +22,8 @@ services:
       # Données persistantes (HLR, SMS, etc.)
       - openbsc-data:/data
       # Configs (modifiables sans rebuild)
-      - ./configs:/etc/osmocom:ro
+      - ./configs:/etc/osmocom:rw
+      - ./scripts:/etc/osmocom:rw
       # Device TUN
       - /dev/net/tun:/dev/net/tun
       - /dev/pts:/dev/pts

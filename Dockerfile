@@ -151,6 +151,7 @@ RUN mkdir -p /etc/osmocom /var/lib/osmocom /data
 COPY configs/ /etc/osmocom/
 COPY scripts/entrypoint.sh /entrypoint.sh
 COPY scripts/launch_calypso.sh /root
+COPY scripts/calypso_loader.py /root
 RUN chmod +x /root/launch_calypso.sh
 RUN chmod +x /entrypoint.sh
 
