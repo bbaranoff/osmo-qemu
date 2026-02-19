@@ -142,7 +142,7 @@ RUN git clone https://github.com/osmocom/osmocom-bb /root/osmocom-bb && \
 ##############################
 # STAGE 2 : RUNTIME
 ##############################
-FROM ubuntu:22.04 AS openbsc_egprs
+FROM builder AS openbsc_egprs
 
 LABEL maintainer="openbsc-egprs"
 LABEL description="OpenBSC (osmo-nitb) + EGPRS + QEMU Calypso"
