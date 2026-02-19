@@ -70,3 +70,5 @@ tmux new-window -t "$SESSION" -n bts
 tmux send-keys -t "$SESSION:bts" \
 "cd $NITB_CONF && osmo-bts-trx -i 127.0.0.1 | tee /tmp/bts.log" Enter
 
+tmux select-window -t "$SESSION:nitb"
+exec tmux attach -t "$SESSION"
