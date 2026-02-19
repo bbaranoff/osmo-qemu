@@ -17,7 +17,7 @@
 
 QEMU=qemu-system-arm
 LOADER=${LOADER:-/root/compal_e88/loader.highram.elf}
-FIRMWARE=${1:-/root/compal_e88/layer1.highram.elf}
+FIRMWARE=${1:-/root/compal_e88/loader.highram.elf}
 LOADER_PY=$(dirname "$(realpath "$0")")/calypso_loader.py
 MONSOCK=/tmp/qemu-calypso-mon.sock
 LOGFILE=/tmp/qemu-calypso.log
