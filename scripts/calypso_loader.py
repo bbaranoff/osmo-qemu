@@ -122,7 +122,7 @@ def handle_client(conn: socket.socket, qmem: QEMUMem):
             cmd     = payload[0]
 
             # ── PING ──────────────────────────────────────
-            if cmd == 0x00:
+            if cmd == 0x01:
                 print("  [LOADER] PING → PONG")
                 send_msg(conn, bytes([0x01, 0x00]))
 
@@ -152,7 +152,7 @@ def handle_client(conn: socket.socket, qmem: QEMUMem):
                 print(" → ACK")
 
             # ── JUMP ──────────────────────────────────────
-            elif cmd in (0x04, 0x06):
+            elif cmd == 0x04:
                 addr = struct.unpack_from(">I", payload, 1)[0] \
                        if len(payload) >= 5 else 0x820000
                 print(f"  [LOADER] JUMP → {hex(addr)}")
