@@ -9,7 +9,7 @@
     exit 1; }
 
 NEW_IP="$1"
-CONF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/configs"
+CONF_DIR="/etc/osmocom"
 
 [ ! -d "$CONF_DIR" ] && { echo "Dossier configs/ introuvable"; exit 1; }
 
@@ -18,4 +18,3 @@ grep -rl '192\.168\.' "$CONF_DIR" | while read f; do
     sed -i "s/192\\.168\\.[0-9]*\\.[0-9]*/${NEW_IP}/g" "$f"
     echo "  updated: $f"
 done
-echo "Terminé. Redémarrer: docker-compose down && docker-compose up"

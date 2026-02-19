@@ -5,10 +5,13 @@ NITB_CONF="/etc/osmocom"
 OSMOCON_MODE="c123xor"
 ADDR_LAYER1="0x00820000"
 FIRMWARE_BIN="/tmp/calypso_upload.bin"
-
 tmux has-session -t "$SESSION" 2>/dev/null && tmux kill-session -t "$SESSION"
 killall -q osmo-nitb osmo-bts-trx qemu-system-arm osmocon transceiver socat || true
 rm -f /tmp/osmocom_l2 /tmp/osmocom_l2.2 /tmp/osmocom_loader
+
+HOST_IP=$(ip route get 1.1.1.1 | awk '{print $7; exit}')
+
+bash /root/set_ip.sh $HOST_IP
 
 tmux new-session -d -s "$SESSION" -n nitb -x 220 -y 50
 

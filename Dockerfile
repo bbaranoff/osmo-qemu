@@ -178,6 +178,7 @@ RUN mkdir -p /etc/osmocom /var/lib/osmocom /data
 # Scripts et configs
 COPY scripts/entrypoint.sh     /entrypoint.sh
 COPY scripts/run.sh            /root/run.sh
+COPY scripts/set_ip.sh         /root/set_ip.sh
 COPY scripts/launch_calypso.sh /root/launch_calypso.sh
 COPY scripts/calypso_loader.py /root/calypso_loader.py
 COPY scripts/calypso.sh        /root/calypso.sh
