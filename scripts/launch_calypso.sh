@@ -1,27 +1,23 @@
 #!/bin/bash
 # =============================================================
-#  launch.sh — Calypso QEMU #1 (BTS)
+#  launch_calypso.sh — Calypso QEMU BTS
 #
-#  Ce script:
-#    1. Extrait les segments ELF
-#    2. Lance QEMU avec le loader (gelé -s -S)
+#  Ce script :
+#    1. Extrait les segments ELF (sans le gap 128KB)
+#    2. Lance QEMU avec le loader (gelé -s -S, GDB :1234)
 #    3. Injecte le firmware via gpa2hva + /proc/PID/mem
 #    4. Lance calypso_loader.py → /tmp/osmocom_loader
-#    5. Attend — osmoload se lance manuellement dans un autre terminal
+#    5. Attend — osmoload se lance MANUELLEMENT dans un autre terminal
+#       (fenêtre tmux 2 = "osmoload" dans run.sh)
 #
-#  Usage:
-#    bash launch.sh [firmware.elf]
-#    default: ~/compal_e88/layer1.highram.elf
-#
-#  Dans un autre terminal:
-#    osmoload -m c123xor -l /tmp/osmocom_loader memload 0x00820000 /tmp/calypso_upload.bin
-#    osmoload -m c123xor -l /tmp/osmocom_loader jump 0x00820000
-#    osmocon -p <PTS> -m c123xor
+#  Usage :
+#    bash launch_calypso.sh [firmware.elf]
+#    default: /root/compal_e88/layer1.highram.elf
 # =============================================================
 
 QEMU=qemu-system-arm
-LOADER=${LOADER:-~/compal_e88/loader.highram.elf}
-FIRMWARE=${1:-~/compal_e88/layer1.highram.elf}
+LOADER=${LOADER:-/root/compal_e88/loader.highram.elf}
+FIRMWARE=${1:-/root/compal_e88/layer1.highram.elf}
 LOADER_PY=$(dirname "$(realpath "$0")")/calypso_loader.py
 MONSOCK=/tmp/qemu-calypso-mon.sock
 LOGFILE=/tmp/qemu-calypso.log
@@ -40,7 +36,7 @@ err()  { echo -e "${R}[ERROR]${N} $*" >&2; }
 
 echo -e "${C}"
 echo "╔══════════════════════════════════════════════════╗"
-echo "║         Calypso QEMU #1 — BTS                    ║"
+echo "║         Calypso QEMU — BTS                       ║"
 printf "║  Firmware : %-36s║\n" "$(basename $FIRMWARE)"
 printf "║  Loader   : %-36s║\n" "$(basename $LOADER)"
 echo "╚══════════════════════════════════════════════════╝"
@@ -53,22 +49,27 @@ LOADER=$(realpath "$LOADER")
 
 # ─── Cleanup ─────────────────────────────────────────────
 log "Cleaning up..."
-rm -f "$MONSOCK" "$LOGFILE" "$EXCEPTIONS_BIN" "$FIRMWARE_BIN" /tmp/osmocom_loader
-killall -q qemu-system-arm osmocon 2>/dev/null
+rm -f "$MONSOCK" "$LOGFILE" "$EXCEPTIONS_BIN" "$FIRMWARE_BIN" \
+      /tmp/osmocom_loader /tmp/osmocom_l2
+killall -q qemu-system-arm osmocon 2>/dev/null || true
 sleep 0.3
 
 # ─── Extract ELF segments ────────────────────────────────
+# Sépare .text.exceptions (0x8001c, 28 bytes) du code principal (0x820000)
+# pour éviter le gap de 128KB de zéros → bad CRC
 log "Extracting ELF segments..."
 arm-none-eabi-objcopy -O binary \
     --only-section=.text.exceptions \
     "$FIRMWARE" "$EXCEPTIONS_BIN"
-[ $? -ne 0 ] || [ ! -s "$EXCEPTIONS_BIN" ] && { err "objcopy .text.exceptions failed"; exit 1; }
+[ $? -ne 0 ] || [ ! -s "$EXCEPTIONS_BIN" ] && {
+    err "objcopy .text.exceptions failed"; exit 1; }
 info "exceptions : $(stat -c%s $EXCEPTIONS_BIN) bytes @ $ADDR_EXCEPTIONS"
 
 arm-none-eabi-objcopy -O binary \
     --remove-section=.text.exceptions \
     "$FIRMWARE" "$FIRMWARE_BIN"
-[ $? -ne 0 ] || [ ! -s "$FIRMWARE_BIN" ] && { err "objcopy main failed"; exit 1; }
+[ $? -ne 0 ] || [ ! -s "$FIRMWARE_BIN" ] && {
+    err "objcopy main failed"; exit 1; }
 info "firmware   : $(stat -c%s $FIRMWARE_BIN) bytes @ $ADDR_LAYER1"
 
 # ─── Start QEMU (paused) ─────────────────────────────────
@@ -138,7 +139,7 @@ try:
             print(f"  [MEM] wrote {len(data):6d} bytes @ HVA {hex(hva)}")
     print("  [MEM] injection complete")
 except PermissionError:
-    print("  [ERR] Permission denied — try: sudo bash launch.sh")
+    print("  [ERR] Permission denied — run with --privileged")
     print("        or: echo 0 > /proc/sys/kernel/yama/ptrace_scope")
     sys.exit(1)
 except Exception as e:
@@ -147,14 +148,10 @@ PYEOF
 [ $? -ne 0 ] && { kill $QEMU_PID; exit 1; }
 
 # ─── Verify ──────────────────────────────────────────────
-EXC_W=$(( echo "x /1 $ADDR_EXCEPTIONS"; sleep 0.3 ) \
-    | socat - UNIX-CONNECT:$MONSOCK 2>/dev/null \
-    | grep -o '0x[0-9a-fA-F]*' | tail -1)
 L1_W=$(( echo "x /1 $ADDR_LAYER1"; sleep 0.3 ) \
     | socat - UNIX-CONNECT:$MONSOCK 2>/dev/null \
     | grep -o '0x[0-9a-fA-F]*' | tail -1)
-info "exceptions[0] = $EXC_W  (expect 0xea...)"
-info "layer1[0]     = $L1_W  (expect 0xe3a00000)"
+info "layer1[0] = $L1_W  (expect 0xe3a00000)"
 
 # ─── calypso_loader.py ───────────────────────────────────
 log "Starting calypso_loader.py..."
@@ -177,23 +174,18 @@ trap "
     exit 0
 " INT TERM
 
-# ─── Done — wait for osmoload ────────────────────────────
+# ─── Affiche les commandes osmoload ──────────────────────
 echo ""
 echo -e "${Y}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}"
-echo -e "${C}  QEMU #1 prêt — lance osmoload dans un autre terminal${N}"
+echo -e "${C}  QEMU prêt — fenêtre tmux 2 (osmoload) :${N}"
 echo -e "${Y}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${N}"
 echo ""
-echo -e "  ${G}QEMU PID :${N} $QEMU_PID"
 echo -e "  ${G}PTY      :${N} $PTS"
 echo -e "  ${G}GDB      :${N} :1234"
-echo -e "  ${G}Loader   :${N} /tmp/osmocom_loader"
 echo -e "  ${G}Firmware :${N} $FIRMWARE_BIN"
 echo ""
-echo -e "${Y}  osmoload:${N}"
 echo -e "  ${C}osmoload -m c123xor -l /tmp/osmocom_loader memload $ADDR_LAYER1 $FIRMWARE_BIN${N}"
 echo -e "  ${C}osmoload -m c123xor -l /tmp/osmocom_loader jump $ADDR_LAYER1${N}"
-echo ""
-echo -e "${Y}  puis osmocon:${N}"
 echo -e "  ${C}osmocon -p $PTS -m c123xor${N}"
 echo ""
 echo -e "${R}  Ctrl+C to stop${N}"
